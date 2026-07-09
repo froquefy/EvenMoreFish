@@ -1,8 +1,4 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.*
 
 plugins {
     java
@@ -58,18 +54,9 @@ afterEvaluate {
 
 
 private fun getBuildNumberOrDate(): String? {
-    val currentBranch = grgit.branch.current().name
-    if (currentBranch.equals("head", ignoreCase = true) || currentBranch.equals("master", ignoreCase = true)) {
-        val buildNumber: String? by project
-        if (buildNumber == null)
-            return "RELEASE"
+    val buildNumber: String? by project
+    if (buildNumber == null)
+        return "RELEASE"
 
-        return buildNumber
-    }
-
-    val time = DateTimeFormatter.ofPattern("yyyyMMdd-HHmm", Locale.ENGLISH)
-        .withZone(ZoneId.systemDefault())
-        .format(Instant.now())
-
-    return time
+    return buildNumber
 }
