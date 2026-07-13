@@ -6,25 +6,22 @@ import com.oheers.fish.api.Logging;
 import com.oheers.fish.api.config.serializer.BossBarOverlaySerializer;
 import com.oheers.fish.api.config.serializer.PotionEffectSerializer;
 import com.oheers.fish.api.config.serializer.SoundSerializer;
+import com.oheers.fish.api.fishing.items.IFish;
 import com.oheers.fish.api.registry.EMFRegistry;
+import com.oheers.fish.baits.manager.BaitManager;
 import com.oheers.fish.config.MainConfig;
-import com.oheers.fish.exceptions.InvalidFishException;
 import com.oheers.fish.fishing.items.Fish;
 import com.oheers.fish.fishing.items.FishManager;
-import com.oheers.fish.fishing.items.Rarity;
 import com.oheers.fish.messages.EMFSingleMessage;
 import com.oheers.fish.messages.abstracted.EMFMessage;
 import com.oheers.fish.utils.DurationFormatter;
 import com.oheers.fish.utils.ItemUtils;
-import com.oheers.fish.utils.nbt.NbtKeys;
-import com.oheers.fish.utils.nbt.NbtUtils;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
 import com.sk89q.worldguard.protection.regions.RegionQuery;
-import de.tr7zw.changeme.nbtapi.NBT;
 import dev.dejvokep.boostedyaml.block.implementation.Section;
 import me.clip.placeholderapi.PlaceholderAPI;
 import net.kyori.adventure.bossbar.BossBar;
@@ -38,7 +35,6 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.Registry;
 import org.bukkit.block.Biome;
 import org.bukkit.block.Skull;
-import org.bukkit.boss.BarStyle;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -46,7 +42,6 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -68,113 +63,8 @@ public class FishUtils {
     private static final DurationFormatter durationFormatter = new DurationFormatter(TimeUnit.SECONDS);
     public static final UUID B64_SKULL_UUID = UUID.fromString("07cd5534-e542-4fbf-861c-67a144ecf776");
 
-    // Enums in 1.20.1 API that are not enums in modern versions.
-    // Used in getEnumValue and will throw if any of these match.
-    private static final List<Class<? extends Enum<?>>> BAD_ENUMS = List.of(
-        org.bukkit.Sound.class
-    );
-
     private FishUtils() {
         throw new UnsupportedOperationException();
-    }
-
-    // checks for the "emf-fish-name" nbt tag, to determine if this ItemStack is a fish or not.
-    public static boolean isFish(@Nullable ItemStack item) {
-        if (item == null || item.isEmpty()) {
-            return false;
-        }
-        return NbtUtils.hasKey(item, NbtKeys.EMF_FISH_NAME);
-    }
-
-    public static boolean isFish(@Nullable Skull skull) {
-        if (skull == null) {
-            return false;
-        }
-        return NbtUtils.hasKey(skull, NbtKeys.EMF_FISH_NAME);
-    }
-
-    public static @Nullable Fish getFish(@Nullable ItemStack item) {
-        if (item == null || item.isEmpty()) {
-            return null;
-        }
-        String nameString = NbtUtils.getString(item, NbtKeys.EMF_FISH_NAME);
-        String playerString = NbtUtils.getString(item, NbtKeys.EMF_FISH_PLAYER);
-        String rarityString = NbtUtils.getString(item, NbtKeys.EMF_FISH_RARITY);
-        Float lengthFloat = NbtUtils.getFloat(item, NbtKeys.EMF_FISH_LENGTH);
-        Integer randomIndex = NbtUtils.getInteger(item, NbtKeys.EMF_FISH_RANDOM_INDEX);
-
-        if (nameString == null || rarityString == null) {
-            return null;
-        }
-
-
-        // Get the rarity
-        Rarity rarity = FishManager.getInstance().getRarity(rarityString);
-
-        if (rarity == null) {
-            return null;
-        }
-
-        // setting the correct length so it's an exact replica.
-        Fish fish = rarity.getFish(nameString);
-        if (fish == null) {
-            return null;
-        }
-        if (randomIndex != null) {
-            fish.getFactory().setRandomIndex(randomIndex);
-        }
-        fish.setLength(lengthFloat);
-        if (playerString != null) {
-            try {
-                fish.setFisherman(UUID.fromString(playerString));
-            } catch (IllegalArgumentException exception) {
-                fish.setFisherman((OfflinePlayer) null);
-            }
-        }
-        return fish;
-    }
-
-    public static @Nullable Fish getFish(@Nullable Skull skull, @Nullable Player fisher) throws InvalidFishException {
-        if (skull == null) {
-            return null;
-        }
-        final String nameString = NBT.getPersistentData(skull, nbt -> nbt.getString(NbtUtils.getNamespacedKey(NbtKeys.EMF_FISH_NAME).toString()));
-        final String playerString = NBT.getPersistentData(skull, nbt -> nbt.getString(NbtUtils.getNamespacedKey(NbtKeys.EMF_FISH_PLAYER).toString()));
-        final String rarityString = NBT.getPersistentData(skull, nbt -> nbt.getString(NbtUtils.getNamespacedKey(NbtKeys.EMF_FISH_RARITY).toString()));
-        final Float lengthFloat = NBT.getPersistentData(skull, nbt -> nbt.getFloat(NbtUtils.getNamespacedKey(NbtKeys.EMF_FISH_LENGTH).toString()));
-        final Integer randomIndex = NBT.getPersistentData(skull, nbt -> nbt.getInteger(NbtUtils.getNamespacedKey(NbtKeys.EMF_FISH_RANDOM_INDEX).toString()));
-
-        if (nameString == null || rarityString == null) {
-            throw new InvalidFishException("NBT Error");
-        }
-
-        // Get the rarity
-        Rarity rarity = FishManager.getInstance().getRarity(rarityString);
-
-        if (rarity == null) {
-            return null;
-        }
-
-        // setting the correct length and randomIndex, so it's an exact replica.
-        Fish fish = rarity.getFish(nameString);
-        if (fish == null) {
-            return null;
-        }
-        fish.setLength(lengthFloat);
-        if (randomIndex != null) {
-            fish.getFactory().setRandomIndex(randomIndex);
-        }
-        if (playerString != null) {
-            try {
-                fish.setFisherman(UUID.fromString(playerString));
-            } catch (IllegalArgumentException exception) {
-                fish.setFisherman((OfflinePlayer) null);
-            }
-        } else if (fisher != null) {
-            fish.setFisherman(fisher);
-        }
-
-        return fish;
     }
 
     public static void giveItems(@NotNull List<@Nullable ItemStack> items, @NotNull Player player) {
@@ -208,41 +98,6 @@ public class FishUtils {
 
     public static void giveItem(@NotNull ItemStack item, @NotNull Player player) {
         giveItems(List.of(item), player);
-    }
-
-    public static boolean checkRegion(@NotNull Location location, @NotNull List<String> whitelistedRegions) {
-        // If no whitelist is defined, allow all regions
-        if (whitelistedRegions.isEmpty()) {
-            return true;
-        }
-
-        // Check WorldGuard
-        if (Bukkit.getPluginManager().isPluginEnabled("WorldGuard")) {
-            RegionContainer container = WorldGuard.getInstance().getPlatform().getRegionContainer();
-            RegionQuery query = container.createQuery();
-            ApplicableRegionSet regions = query.getApplicableRegions(BukkitAdapter.adapt(location));
-
-            for (ProtectedRegion region : regions) {
-                if (whitelistedRegions.contains(region.getId())) {
-                    return true; // Return true if a region matches the whitelist
-                }
-            }
-
-            return false; // No match found in WorldGuard regions
-        }
-
-        // Check RedProtect
-        if (Bukkit.getPluginManager().isPluginEnabled("RedProtect")) {
-            Region region = RedProtect.get().getAPI().getRegion(location);
-            if (region != null) {
-                return whitelistedRegions.contains(region.getName()); // Check if the region is whitelisted
-            }
-            return false; // No region found in RedProtect
-        }
-
-        // If no supported region plugins are found
-        EvenMoreFish.getInstance().getLogger().warning("Please install WorldGuard or RedProtect to use allowed-regions.");
-        return true; // Allow by default if no region plugin is present
     }
 
 
@@ -281,22 +136,6 @@ public class FishUtils {
         return null;
     }
 
-
-    public static boolean checkWorld(@NotNull Location l) {
-        // if the user has defined a world whitelist
-        if (!MainConfig.getInstance().worldWhitelist()) {
-            return true;
-        }
-
-        // Gets a list of user defined regions
-        List<String> whitelistedWorlds = MainConfig.getInstance().getAllowedWorlds();
-        if (l.getWorld() == null) {
-            return false;
-        }
-
-        return whitelistedWorlds.contains(l.getWorld().getName());
-    }
-
     public static @NotNull EMFMessage timeFormat(long timeLeft) {
         return EMFSingleMessage.of(durationFormatter.format(timeLeft));
     }
@@ -316,20 +155,6 @@ public class FishUtils {
         // Remaining seconds to always show, e.g. "1 minutes and 0 seconds left" and "5 seconds left"
         returning += (timeLeft % 60);
         return returning;
-    }
-
-    /**
-     * Determines whether the bait has the emf nbt tag "bait:", this can be used to decide whether this is a bait that
-     * can be applied to a rod or not.
-     *
-     * @param item The item being considered.
-     * @return Whether this ItemStack is a bait.
-     */
-    public static boolean isBaitObject(@NotNull ItemStack item) {
-        if (!item.isEmpty()) {
-            return NbtUtils.hasKey(item, NbtKeys.EMF_BAIT);
-        }
-        return false;
     }
 
     /**
@@ -586,7 +411,7 @@ public class FishUtils {
     /**
      * @deprecated Use {@link PotionEffectSerializer#deserialize(String, String)} instead.
      */
-    @Deprecated(forRemoval = true)
+    @Deprecated
     public static @Nullable PotionEffect getPotionEffect(@NotNull String effectString, @NotNull String separator) {
         return PotionEffectSerializer.get().deserialize(effectString, separator);
     }
@@ -594,7 +419,7 @@ public class FishUtils {
     /**
      * @deprecated Use {@link PotionEffectSerializer#deserialize(String)} instead.
      */
-    @Deprecated(forRemoval = true)
+    @Deprecated
     public static @Nullable PotionEffect getPotionEffect(@NotNull String effectString) {
         return PotionEffectSerializer.get().deserialize(effectString);
     }
@@ -602,7 +427,7 @@ public class FishUtils {
     /**
      * @deprecated Use {@link SoundSerializer#deserialize(String)} instead.
      */
-    @Deprecated(forRemoval = true)
+    @Deprecated
     public static @Nullable Sound.Type getSound(@Nullable String name) {
         try {
             return org.bukkit.Sound.valueOf(name);
@@ -611,9 +436,67 @@ public class FishUtils {
         }
     }
 
-    @Deprecated(forRemoval = true)
+    @Deprecated
     public static BossBar.Overlay fetchBarStyle(@Nullable String styleStr) {
         return BossBarOverlaySerializer.get().deserialize(styleStr);
+    }
+
+    /**
+     * @deprecated Use {@link FishManager#isFish(ItemStack)} instead.
+     */
+    @Deprecated
+    public static boolean isFish(@Nullable ItemStack item) {
+        return FishManager.getInstance().isFish(item);
+    }
+
+    /**
+     * @deprecated Use {@link FishManager#isFish(Skull)} instead.
+     */
+    @Deprecated
+    public static boolean isFish(@Nullable Skull skull) {
+        return FishManager.getInstance().isFish(skull);
+    }
+
+    /**
+     * @deprecated Use {@link FishManager#getFish(ItemStack)} instead.
+     */
+    @Deprecated
+    public static @Nullable Fish getFish(@Nullable ItemStack item) {
+        IFish abstracted = FishManager.getInstance().getFish(item);
+        return (abstracted instanceof Fish fish) ? fish : null;
+    }
+
+    /**
+     * @deprecated Use {@link FishManager#getFish(Skull, Player)} instead.
+     */
+    @Deprecated
+    public static @Nullable Fish getFish(@Nullable Skull skull, @Nullable Player fisher) {
+        IFish abstracted = FishManager.getInstance().getFish(skull, fisher);
+        return (abstracted instanceof Fish fish) ? fish : null;
+    }
+
+    /**
+     * @deprecated Use {@link BaitManager#isBait(ItemStack)} instead.
+     */
+    @Deprecated
+    public static boolean isBaitObject(@NotNull ItemStack item) {
+        return BaitManager.getInstance().isBait(item);
+    }
+
+    /**
+     * @deprecated Use {@link Checks#canFishInWorld(Location)} instead.
+     */
+    @Deprecated
+    public static boolean checkWorld(@NotNull Location l) {
+        return Checks.canFishInWorld(l);
+    }
+
+    /**
+     * @deprecated Use {@link Checks#canUseRegion(Location, List)} instead.
+     */
+    @Deprecated
+    public static boolean checkRegion(@NotNull Location location, @NotNull List<String> whitelistedRegions) {
+        return Checks.canUseRegion(location, whitelistedRegions);
     }
 
 }

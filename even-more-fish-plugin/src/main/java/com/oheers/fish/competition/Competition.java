@@ -308,7 +308,11 @@ public class Competition {
     }
 
     private void processRewards() {
-        if (competitionType.getStrategy().isSingleReward() && singleWinner != null) {
+        if (competitionType.getStrategy().isSingleReward()) {
+            if (singleWinner == null) {
+                Logging.warn("Single-winner competition ended without a winner.");
+                return;
+            }
             singleReward(singleWinner);
         } else {
             handleRewards();
@@ -553,6 +557,18 @@ public class Competition {
                 reward.rewardPlayer(player, null);
             }
         }
+
+        // Handle database updates for all entries. This was originally missed.
+
+        CompetitionEntry entry = leaderboard.getEntry(player.getUniqueId());
+        handleDatabaseUpdates(entry, true);
+
+        leaderboard.getEntries().forEach(e -> {
+            if (e.getPlayer().equals(player.getUniqueId())) {
+                return;
+            }
+            handleDatabaseUpdates(e, false);
+        });
     }
 
     public @NotNull Bar getStatusBar() {
